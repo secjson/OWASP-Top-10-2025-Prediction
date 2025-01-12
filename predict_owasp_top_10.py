@@ -19,7 +19,6 @@ def get_owasp_2021_cwes():
 	return owasp_2021_mappings
 
 def regex_cwe(file_path):
-	#cwe_pattern = r"\"cweId\":.*\"(CWE-.*)\""
 	cwe_pattern = r"CWE-\d*"
 	base_score_pattern = r"\"baseScore\":.?(.*),"
 	base_score = None
@@ -49,7 +48,7 @@ def regex_cwe(file_path):
 def cwe_gatherer(directory):
 	cwes_dict = dict()
 	owasp_2021_mappings = get_owasp_2021_cwes()
-	#cwe_with_base_score = dict()
+
 	#Read all files recursively
 	for root, dirs, files in os.walk(directory):
 		for file in files:
@@ -57,7 +56,9 @@ def cwe_gatherer(directory):
             
 			print(file_path)
 
+			# Retrieve CWE Value and Base Score from CVE data
 			cwes,base_score = regex_cwe(file_path)
+
 			if cwes:
 				for cwe in cwes:
 					if cwe not in cwes_dict.keys():
@@ -91,12 +92,76 @@ def cwe_gatherer(directory):
 
 	return cwes_dict#, cwe_with_base_score
 
-def data_analysis(cwes_dict):
-	sorted_list = sorted(cwes_dict.keys(), key=lambda x: (cwes_dict[x]['count'], cwes_dict[x]['baseScoreAverage']), reverse=True)
-	print(sorted_list)
+def data_analysis_basescore(cwes_dict):
+	sorted_list = sorted(cwes_dict.keys(), key=lambda x: (cwes_dict[x]['baseScoreAverage'], cwes_dict[x]['count']), reverse=True)
+
+	cwe_not_in_2021_top_10 = []
+	cwe_not_in_2021_top_10_basescore = []
 
 	for i in range(0,50):
-		print(f"{sorted_list[i]} - {cwes_dict[sorted_list[i]]}")
+		if 'OWASP 2021 Mapping' not in cwes_dict[sorted_list[i]]:
+			print(f"{sorted_list[i]} - {cwes_dict[sorted_list[i]]}")
+			cwe_not_in_2021_top_10.append(sorted_list[i])
+			cwe_not_in_2021_top_10_basescore.append(cwes_dict[sorted_list[i]]['baseScoreAverage'])
+
+	plt.bar(cwe_not_in_2021_top_10, cwe_not_in_2021_top_10_basescore)
+	plt.xlabel('CWEs Not in 2021 OWASP Top 10 List with High Impacts')
+	plt.ylabel('CVSS Base Score Average')
+	plt.title('Identifying CWEs not Included in 2021 OWASP Top 10 List with High Impacts')
+	plt.xticks(rotation=45,ha='right')
+	plt.tight_layout()
+	plt.show()
+
+	# Graph CVE average base score based on OWASP Top 10 2021 Category
+	owasp_category_count=dict()
+	for cwe in cwes_dict.keys():
+		if 'OWASP 2021 Mapping' in cwes_dict[cwe].keys():
+			mapping=cwes_dict[cwe]['OWASP 2021 Mapping']
+
+			if mapping not in owasp_category_count.keys():
+				owasp_category_count[mapping]=dict()
+				owasp_category_count[mapping]['count'] = 1
+				owasp_category_count[mapping]['baseScoreAverage'] = cwes_dict[cwe]['baseScoreAverage']
+			else:
+				owasp_category_count[mapping]['count']+=1
+				owasp_category_count[mapping]['baseScoreAverage'] += cwes_dict[cwe]['baseScoreAverage']
+
+	print(owasp_category_count)
+
+	owasp_categories=[]
+	basescore_average=[]
+
+	for category in owasp_category_count.keys():
+		owasp_categories.append(category)
+		basescore_average.append(owasp_category_count[category]['baseScoreAverage']/owasp_category_count[category]['count'])
+
+	plt.bar(owasp_categories, basescore_average)
+	plt.xlabel('OWASP Top 10 2021 Categories')
+	plt.ylabel('CVSS Base Score Average')
+	plt.title('2021-2024 OWASP Top 10 2021 CVE Categories CVSS Base Score Averages')
+	plt.xticks(rotation=45,ha='right')
+	plt.tight_layout()
+	plt.show()
+
+def data_analysis_count(cwes_dict):
+	sorted_list = sorted(cwes_dict.keys(), key=lambda x: (cwes_dict[x]['count'], cwes_dict[x]['baseScoreAverage']), reverse=True)
+
+	cwe_not_in_2021_top_10 = []
+	cwe_not_in_2021_top_10_count = []
+
+	for i in range(0,50):
+		if 'OWASP 2021 Mapping' not in cwes_dict[sorted_list[i]]:
+			print(f"{sorted_list[i]} - {cwes_dict[sorted_list[i]]}")
+			cwe_not_in_2021_top_10.append(sorted_list[i])
+			cwe_not_in_2021_top_10_count.append(cwes_dict[sorted_list[i]]['count'])
+
+	plt.bar(cwe_not_in_2021_top_10, cwe_not_in_2021_top_10_count)
+	plt.xlabel('CWEs Not in 2021 OWASP Top 10 List')
+	plt.ylabel('Count')
+	plt.title('Identifying CWEs not Included in 2021 OWASP Top 10 List')
+	plt.xticks(rotation=45,ha='right')
+	plt.tight_layout()
+	plt.show()
 
 	# Graph CVE count based on OWASP Top 10 2021 Category
 	owasp_category_count=dict()
@@ -139,7 +204,8 @@ def main():
 	cwes_dict = cwe_gatherer('./cvelist')
 	print(cwes_dict)
 
-	data_analysis(cwes_dict)
+	data_analysis_count(cwes_dict)
+	data_analysis_basescore(cwes_dict)
 
 	
 	#count=0
